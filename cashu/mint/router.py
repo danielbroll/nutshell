@@ -24,6 +24,7 @@ from ..core.models import (
     PostRestoreResponse,
     PostSwapRequest,
     PostSwapResponse,
+    StatisticsResponse,
 )
 from ..core.settings import settings
 from ..mint.startup import ledger
@@ -414,3 +415,38 @@ async def restore(payload: PostRestoreRequest) -> PostRestoreResponse:
     assert payload.outputs, Exception("no outputs provided.")
     outputs, signatures = await ledger.restore(payload.outputs)
     return PostRestoreResponse(outputs=outputs, signatures=signatures)
+
+
+@router.get(
+    "/v1/statistics",
+    name="Statistics",
+    summary="Get transaction statistics from the mint",
+    response_model=StatisticsResponse,
+    response_description="Returns statistics about the mint's operations"
+)
+async def get_statistics() -> StatisticsResponse:
+    logger.trace("> GET /v1/statistics")
+    async with ledger.db.connect() as conn:
+        # Count total mint operations
+        mint_count_result = await conn.execute(
+            "SELECT COUNT(*) as count FROM mint_quotes WHERE state = 'PAID'"
+        )
+        mint_count = mint_count_result.fetchone()['count']
+
+        # Count total melt operations
+        melt_count_result = await conn.execute(
+            "SELECT COUNT(*) as count FROM melt_quotes WHERE state = 'PAID'"
+        )
+        melt_count = melt_count_result.fetchone()['count']
+
+        # Count total swap operations
+        swap_count_result = await conn.execute(
+            "SELECT COUNT(*) as count FROM proofs_used WHERE swap_id IS NOT NULL"
+        )
+        swap_count = swap_count_result.fetchone()['count']
+
+    return StatisticsResponse(
+        total_mints=mint_count,
+        total_melts=melt_count,
+        total_swaps=swap_count
+    )
