@@ -69,7 +69,11 @@ async def get_settings():
     logger.trace("> GET /v1/settings")
     return {
         "settings": [
-            {"mint_backend_bolt11_sat": settings.mint_backend_bolt11_sat}
+            {"mint_backend_bolt11_sat": settings.mint_backend_bolt11_sat},
+            {"mint_database": settings.mint_database},
+            {"lightning_fee_percent": settings.lightning_fee_percent},
+            {"lightning_reserve_fee_min": settings.lightning_reserve_fee_min},
+            {"mint_derivation_path": settings.mint_derivation_path}
         ]
     }
 
