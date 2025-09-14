@@ -370,6 +370,14 @@ class PostRestoreResponse(BaseModel):
         self.promises = self.signatures
 
 
+    # ------- API: STATISTICS -------
+
+class StatisticsResponse(BaseModel):
+    total_mints: int
+    total_melts: int
+    total_swaps: int
+
+
 # ------- API: BLIND AUTH -------
 class PostAuthBlindMintRequest(BaseModel):
     outputs: List[BlindedMessage] = Field(
