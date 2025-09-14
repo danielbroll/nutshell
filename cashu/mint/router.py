@@ -427,35 +427,80 @@ async def restore(payload: PostRestoreRequest) -> PostRestoreResponse:
 async def get_statistics() -> StatisticsResponse:
     logger.trace("> GET /v1/statistics")
     async with ledger.db.connect() as conn:
-        # Count total mint operations
-        mint_count_result = await conn.execute(
-            "SELECT COUNT(*) as count FROM mint_quotes WHERE state = 'PAID'"
-        )
-        mint_count_row = mint_count_result.fetchone()
-        mint_count = mint_count_row[0] if mint_count_row else 0
-        logger.info(f"Total mint operations: {mint_count}")
+        # Initialize counters
+        mint_count = 0
+        melt_count = 0
+        swap_count = 0
 
-        # Count total melt operations
-        melt_count_result = await conn.execute(
-            "SELECT COUNT(*) as count FROM melt_quotes WHERE state = 'PAID'"
-        )
-        melt_count_row = melt_count_result.fetchone()
-        melt_count = melt_count_row[0] if melt_count_row else 0
-        logger.info(f"Total melt operations: {melt_count}")
-
-        # Use a query that works regardless of schema changes
-        # For swap operations, we'll count from proofs_used table where txid starts with 'swap'
+        # Count total mint operations from mint_quotes table with state 'PAID'
         try:
-            swap_count_result = await conn.execute(
-                "SELECT COUNT(*) as count FROM proofs_used WHERE txid LIKE 'swap%'"
+            mint_count_result = await conn.execute(
+                "SELECT COUNT(*) FROM mint_quotes WHERE state = 'PAID'"
             )
-            swap_count_row = swap_count_result.fetchone()
-            swap_count = swap_count_row[0] if swap_count_row else 0
+            mint_count_row = mint_count_result.fetchone()
+            mint_count = mint_count_row[0] if mint_count_row else 0
+            logger.info(f"Total mint operations: {mint_count}")
+        except Exception as e:
+            logger.error(f"Error counting mints: {e}")
+
+        # Count total melt operations from melt_quotes table with state 'PAID'
+        try:
+            melt_count_result = await conn.execute(
+                "SELECT COUNT(*) FROM melt_quotes WHERE state = 'PAID'"
+            )
+            melt_count_row = melt_count_result.fetchone()
+            melt_count = melt_count_row[0] if melt_count_row else 0
+            logger.info(f"Total melt operations: {melt_count}")
+        except Exception as e:
+            logger.error(f"Error counting melts: {e}")
+
+        # For swap operations, we need to identify transactions that are not mint/melt operations
+        # In proofs_used table, entries without a txid reference to mint_quotes or melt_quotes
+        # are likely swap operations
+        try:
+            # From the data sample, we can see that melt operations have the melt_quotes 'quote' as txid
+            # in the proofs_used table, so we need to count proofs that are not linked to mint/melt
+            melt_quotes_query = "SELECT quote FROM melt_quotes"
+            melt_quotes_result = await conn.execute(melt_quotes_query)
+            melt_quotes = [row[0] for row in melt_quotes_result.fetchall()]
+
+            # Format the list for an SQL IN clause
+            if melt_quotes:
+                melt_quotes_str = "', '".join(melt_quotes)
+                melt_quotes_list = f"('{melt_quotes_str}')"
+
+                # Count proofs_used entries that don't have txid matching melt_quotes and are not NULL
+                swap_query = f"""
+                    SELECT COUNT(*) FROM proofs_used 
+                    WHERE txid IS NOT NULL AND txid NOT IN {melt_quotes_list}
+                """
+                swap_count_result = await conn.execute(swap_query)
+                swap_count_row = swap_count_result.fetchone()
+                swap_count = swap_count_row[0] if swap_count_row else 0
+            else:
+                # If there are no melt_quotes, all non-NULL txid entries in proofs_used could be swaps
+                swap_query = "SELECT COUNT(*) FROM proofs_used WHERE txid IS NOT NULL"
+                swap_count_result = await conn.execute(swap_query)
+                swap_count_row = swap_count_result.fetchone()
+                swap_count = swap_count_row[0] if swap_count_row else 0
+
+            logger.info(f"Total swap operations: {swap_count}")
         except Exception as e:
             logger.error(f"Error counting swaps: {e}")
-            swap_count = 0
+            # Fallback to a simpler approach if the complex query fails
+            try:
+                # Try a more direct approach - count proofs with transaction IDs that aren't in the melt quotes
+                swap_count_result = await conn.execute(
+                    "SELECT COUNT(*) FROM proofs_used WHERE txid IS NOT NULL"
+                )
+                swap_count_row = swap_count_result.fetchone()
+                total_tx_count = swap_count_row[0] if swap_count_row else 0
 
-        logger.info(f"Total swap operations: {swap_count}")
+                # Subtract melt operations to get an estimate of swap operations
+                swap_count = max(0, total_tx_count - melt_count)
+                logger.info(f"Estimated swap operations (fallback): {swap_count}")
+            except Exception as e2:
+                logger.error(f"Error with fallback swap counting: {e2}")
 
     # Log all statistics together for easy reference
     logger.info(f"Statistics summary - Mints: {mint_count}, Melts: {melt_count}, Swaps: {swap_count}")
