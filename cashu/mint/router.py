@@ -443,12 +443,18 @@ async def get_statistics() -> StatisticsResponse:
         melt_count = melt_count_row[0] if melt_count_row else 0
         logger.info(f"Total melt operations: {melt_count}")
 
-        # Count total swap operations
-        swap_count_result = await conn.execute(
-            "SELECT COUNT(*) as count FROM proofs_used WHERE swap_id IS NOT NULL"
-        )
-        swap_count_row = swap_count_result.fetchone()
-        swap_count = swap_count_row[0] if swap_count_row else 0
+        # Use a query that works regardless of schema changes
+        # For swap operations, we'll count from proofs_used table where txid starts with 'swap'
+        try:
+            swap_count_result = await conn.execute(
+                "SELECT COUNT(*) as count FROM proofs_used WHERE txid LIKE 'swap%'"
+            )
+            swap_count_row = swap_count_result.fetchone()
+            swap_count = swap_count_row[0] if swap_count_row else 0
+        except Exception as e:
+            logger.error(f"Error counting swaps: {e}")
+            swap_count = 0
+
         logger.info(f"Total swap operations: {swap_count}")
 
     # Log all statistics together for easy reference
