@@ -59,6 +59,19 @@ async def info() -> GetInfoResponse:
         time=int(time.time()),
     )
 
+@router.get(
+    "/v1/settings",
+    name="Settings",
+    summary="Retrieve mint settings",
+    response_description="Returns mint configuration settings",
+)
+async def get_settings():
+    logger.trace("> GET /v1/settings")
+    return {
+        "settings": [
+            {"mint_backend_bolt11_sat": settings.mint_backend_bolt11_sat}
+        ]
+    }
 
 @router.get(
     "/v1/keys",
