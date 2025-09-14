@@ -431,19 +431,28 @@ async def get_statistics() -> StatisticsResponse:
         mint_count_result = await conn.execute(
             "SELECT COUNT(*) as count FROM mint_quotes WHERE state = 'PAID'"
         )
-        mint_count = mint_count_result.fetchone()['count']
+        mint_count_row = mint_count_result.fetchone()
+        mint_count = mint_count_row[0] if mint_count_row else 0
+        logger.info(f"Total mint operations: {mint_count}")
 
         # Count total melt operations
         melt_count_result = await conn.execute(
             "SELECT COUNT(*) as count FROM melt_quotes WHERE state = 'PAID'"
         )
-        melt_count = melt_count_result.fetchone()['count']
+        melt_count_row = melt_count_result.fetchone()
+        melt_count = melt_count_row[0] if melt_count_row else 0
+        logger.info(f"Total melt operations: {melt_count}")
 
         # Count total swap operations
         swap_count_result = await conn.execute(
             "SELECT COUNT(*) as count FROM proofs_used WHERE swap_id IS NOT NULL"
         )
-        swap_count = swap_count_result.fetchone()['count']
+        swap_count_row = swap_count_result.fetchone()
+        swap_count = swap_count_row[0] if swap_count_row else 0
+        logger.info(f"Total swap operations: {swap_count}")
+
+    # Log all statistics together for easy reference
+    logger.info(f"Statistics summary - Mints: {mint_count}, Melts: {melt_count}, Swaps: {swap_count}")
 
     return StatisticsResponse(
         total_mints=mint_count,
