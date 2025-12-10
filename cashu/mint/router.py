@@ -509,5 +509,5 @@ async def get_statistics() -> StatisticsResponse:
         total_mints=mint_count,
         total_melts=melt_count,
         total_swaps=swap_count,
-        version="second version"
+        version="third version"
     )
