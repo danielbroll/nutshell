@@ -1,4 +1,4 @@
-# Cashu Nutshell
+# Cashu Nutshell-UI
 
 **Nutshell is a Chaumian Ecash wallet and mint for Bitcoin Lightning based on the Cashu protocol.**
 
