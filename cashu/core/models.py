@@ -376,6 +376,7 @@ class StatisticsResponse(BaseModel):
     total_mints: int
     total_melts: int
     total_swaps: int
+    version: str
 
 
 # ------- API: BLIND AUTH -------
